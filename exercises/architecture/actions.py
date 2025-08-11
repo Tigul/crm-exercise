@@ -1,3 +1,5 @@
+from semantic_world.world import World
+
 
 class ActionDesignator:
 
@@ -13,6 +15,9 @@ class PickUpActionDesignator(ActionDesignator):
         super().__init__()
         pass
 
+    def perform(self, world: World):
+        pass
+
 class PlaceActionDesignator(ActionDesignator):
     """
     A designator for place actions.
@@ -22,6 +27,9 @@ class PlaceActionDesignator(ActionDesignator):
         super().__init__()
         pass
 
+    def perform(self, world: World):
+        pass
+
 class NavigateActionDesignator(ActionDesignator):
     """
     A designator for navigate actions.
@@ -29,4 +37,7 @@ class NavigateActionDesignator(ActionDesignator):
 
     def __init__(self):
         super().__init__()
+        pass
+
+    def perform(self, world: World):
         pass
