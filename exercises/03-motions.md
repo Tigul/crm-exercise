@@ -1,4 +1,4 @@
-from exercises.architecture.motions import JointMotionDesignator---
+---
 jupyter:
   jupytext:
     text_representation:
