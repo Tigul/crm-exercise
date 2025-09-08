@@ -28,10 +28,13 @@ URDFs are used to represent the robot and its environment. The Semantic World su
 world. The following code snippet shows how to load a URDF and add it to the world:
 
 ```python
+import os.path
 from semantic_world.adapters.urdf import URDFParser
+from pathlib import Path
 
-pr2_path = "<path to your PR2 URDF file>"
-pr2 = URDFParser(pr2_path).parse()
+
+pr2_path = Path().resolve().joinpath("..", "resources", "pr2.urdf")
+pr2 = URDFParser.from_file(str(pr2_path)).parse()
 ```
 
 This will return a `World` with the parsed URDF. To visualize the world and its contents the Semantic World provides a
@@ -39,18 +42,28 @@ publisher to RViz2. You can use the following code snippet to visualize the worl
 
 ```python
 from semantic_world.adapters.viz_marker import VizMarkerPublisher
+import rclpy
 
-viz_publisher = VizMarkerPublisher(pr2)
+rclpy.init()
+node = rclpy.create_node("semantic_world_viz")
+
+viz_publisher = VizMarkerPublisher(pr2, node)
 ```
 Now you can view the world in RViz2 by opening Rviz2 -> Add -> By Topic -> `/semantic_world/viz_marker`.motion
 
 If you load a second URDF and want to add it to the world, you can use the `merge_world` method of the `World` class:
 
 ```python
-apartment_path = "<path to your second URDF file>"
-apartment = URDFParser(apartment_path).parse()
+apartment_path = Path().resolve().joinpath("..", "resources", "apartment.urdf")
+apartment = URDFParser.from_file(apartment_path).parse()
 
 apartment.merge_world(pr2)
+```
+
+To end the visualization, you can use the following code snippet:
+
+```python
+viz_publisher._stop_publishing()
 ```
 
 ### Working with Bodies 
@@ -64,7 +77,8 @@ Body -> Link
 Connection -> Joint
 
 ```python 
-pr2 = URDFParser(pr2_path).parse()
+pr2_path = Path().resolve().joinpath("..", "resources", "pr2.urdf")
+pr2 = URDFParser.from_file(str(pr2_path)).parse()
 ```
 
 ```python
@@ -79,10 +93,10 @@ To get the body of a specific name, you can use the `get_body_by_name` method:
 pr2.get_body_by_name("base_link")
 ```
 
-To get the pose of a body, you can use the `compute_forward_kinematic_np` method:
+To get the pose of a body, you can use the `compute_forward_kinematics_np` method:
 
 ```python
-pr2.compute_forward_kinematic_np(pr2.root, pr2.get_body_by_name("base_link"))
+pr2.compute_forward_kinematics_np(pr2.root, pr2.get_body_by_name("base_link"))
 ```
 
 This will return the pose of the body relative to the root link of the PR2 as a 4x4 transformation matrix.
@@ -92,20 +106,20 @@ In some cases you need the pose of a body relative to another body or a pose rel
 you need to transform the pose of the body to the desired frame.
 
 The semantic world provides two methods to transform poses between body frames:
-* `compute_forward_kinematic_np`: This method computes the pose of a body relative to another body.
-* `compute_relative_pose`: This method computes the pose of a body relative to another body, but it does not require the root body.
+* `compute_forward_kinematics_np`: This method computes the pose of a body relative to another body.
+* `transform`: This method transforms a pose or transform to be relative to aother body.
 
 Both of these methods return a 4x4 transformation matrix.
 
 ```python
-import numpy as np
+from semantic_world.spatial_types  import TransformationMatrix
 
-pr2.compute_forward_kinematic_np(pr2.root, pr2.get_body_by_name("base_link"))
+pr2.compute_forward_kinematics_np(pr2.root, pr2.get_body_by_name("base_link"))
 
-origin_pose = np.eye(4)  # Identity matrix as the origin pose
-origin_pose[0, 3] = 1.0  # Move the pose 1 meter up in the x direction
+origin_pose = TransformationMatrix.from_xyz_rpy(x=1.0, reference_frame=pr2.get_body_by_name("torso_lift_link"))
 
-pr2.compute_relative_pose(origin_pose, pr2.get_body_by_name("torso_lift_link"), pr2.get_body_by_name("base_link"))
+pr2.transform(origin_pose, pr2.get_body_by_name("base_link"))
+
 ```
 
 ### How to use the inverse kinematics solver
@@ -117,16 +131,21 @@ The Semantic World provides an inverse kinematics solver that can be used to com
 
 To use the inverse kinematics solver, you need to specify the end effector pose and the body that represents the end effector.
 ```python
-from semantic_world.ik_solver import InverseKinematicsSolver
+from semantic_world.spatial_computations.ik_solver import  InverseKinematicsSolver
+from semantic_world.spatial_types import TransformationMatrix
 
 ik_solver = InverseKinematicsSolver(pr2)
 
-target_pose = np.eye(4)  # Identity matrix as the target pose
-target_pose[:3, 3] = [0.4, 0.2, 0.8]  # Set the translation of the target pose
+target_pose = TransformationMatrix.from_xyz_rpy(0.4, 0.2, 0.8, reference_frame=pr2.get_body_by_name("base_link"))
 
 joint_positions = ik_solver.solve(pr2.get_body_by_name("base_link"), pr2.get_body_by_name("r_gripper_tool_frame"), target_pose)
 
 for joint, state in joint_positions.items():
     pr2.state[joint.name].position = state
 pr2.notify_state_change()
+```
+
+For convenience there is also a method to calculate the inverse kinematics directly associated with a world:
+```python
+joint_positions = pr2.compute_inverse_kinematics(pr2.get_body_by_name("base_link"), pr2.get_body_by_name("r_gripper_tool_frame"), target_pose)
 ```
